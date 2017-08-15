@@ -1,0 +1,133 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  "Parameters" : {
+    "OperatorEmail": {
+      "Description": "Email address to notify when new logs are published.",
+      "Type": "String"
+    }
+  },
+  "Resources" : {
+    "S3Bucket": {
+      "DeletionPolicy" : "Retain",
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+      }
+    },
+    "BucketPolicy" : {
+      "Type" : "AWS::S3::BucketPolicy",
+      "Properties" : {
+        "Bucket" : {"Ref" : "S3Bucket"},
+        "PolicyDocument" : {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AWSCloudTrailAclCheck",
+              "Effect": "Allow",
+              "Principal": { "Service":"cloudtrail.amazonaws.com"},
+              "Action": "s3:GetBucketAcl",
+              "Resource": { "Fn::Join" : ["", ["arn:aws:s3:::", {"Ref":"S3Bucket"}]]}
+            },
+            {
+              "Sid": "AWSCloudTrailWrite",
+              "Effect": "Allow",
+              "Principal": { "Service":"cloudtrail.amazonaws.com"},
+              "Action": "s3:PutObject",
+              "Resource": { "Fn::Join" : ["", ["arn:aws:s3:::", {"Ref":"S3Bucket"}, "/AWSLogs/", {"Ref":"AWS::AccountId"}, "/*"]]},
+              "Condition": {
+                "StringEquals": {
+                  "s3:x-amz-acl": "bucket-owner-full-control"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "CMK" : {
+      "Type": "AWS::KMS::Key",
+      "Description" : "KMS Key for encrypting CloudTrail Logs",
+      "Properties" : {
+        "Enabled" : true,
+        "EnableKeyRotation": true,
+        "KeyPolicy": {
+          "Version": "2012-10-17",
+          "Id": "cloudtrail-cmkpolicy",
+          "Statement": [
+            {
+              "Sid": "AWSCloudTrailKeyAccess",
+              "Effect": "Allow",
+              "Principal": {"Service": "cloudtrail.amazonaws.com"},
+              "Action": [
+                "kms:Encrypt",
+                "kms:Decrypt",
+                "kms:ReEncrypt*",
+                "kms:GenerateDataKey*",
+                "kms:DescribeKey"
+              ],
+              "Resource" : "*"
+            },
+            {
+              "Sid" : "AWSCloudTrailKeyAdmin",
+              "Effect" : "Allow",
+              "Principal" : {"AWS": {"Fn::Join": ["", ["arn:aws:iam::",{"Ref":"AWS::AccountId"},":root"]]}},
+              "Action" : [
+                "kms:Create*",
+                "kms:Describe*",
+                "kms:Enable*",
+                "kms:List*",
+                "kms:Put*",
+                "kms:Update*",
+                "kms:Revoke*",
+                "kms:Disable*",
+                "kms:Get*",
+                "kms:Delete*",
+                "kms:ScheduleKeyDeletion",
+                "kms:CancelKeyDeletion"
+              ],
+              "Resource": "*"
+            }            
+          ]
+        }
+      }
+    },
+    
+    "Topic": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "Subscription": [ {
+          "Endpoint": { "Ref": "OperatorEmail" },
+          "Protocol": "email" } ]
+      }
+    },
+    "TopicPolicy" : {
+      "Type" : "AWS::SNS::TopicPolicy",
+      "Properties" : {
+        "Topics" : [{"Ref":"Topic"}],
+        "PolicyDocument" : {
+          "Version": "2008-10-17",
+          "Statement": [
+            {
+              "Sid": "AWSCloudTrailSNSPolicy",
+              "Effect": "Allow",
+              "Principal": { "Service":"cloudtrail.amazonaws.com"},
+              "Resource": "*",
+              "Action": "SNS:Publish"
+            }
+          ]
+        }
+      }
+    },
+    "myTrail" : {
+      "DependsOn" : ["BucketPolicy", "TopicPolicy", "CMK"],
+      "Type" : "AWS::CloudTrail::Trail",
+      "Properties" : {
+        "S3BucketName" : {"Ref":"S3Bucket"},
+        "SnsTopicName" : {"Fn::GetAtt":["Topic","TopicName"]},
+        "IsLogging" : true,
+        "IsMultiRegionTrail" : true,
+        "IncludeGlobalServiceEvents": true,
+        "KMSKeyId" : {"Ref" : "CMK"}
+      }
+    }
+  }
+}
