@@ -4,6 +4,11 @@
     "OperatorEmail": {
       "Description": "Email address to notify when new logs are published.",
       "Type": "String"
+    },
+    "ExpirationInDays" : {
+      "Description" : "Expiration of the CloudTrail logs in days",
+      "Type" : "Number",
+      "Default" : 365
     }
   },
   "Resources" : {
@@ -11,6 +16,14 @@
       "DeletionPolicy" : "Retain",
       "Type": "AWS::S3::Bucket",
       "Properties": {
+        "LifecycleConfiguration" : {
+          "Rules" : [
+            {
+              "Status" : "Enabled",
+              "ExpirationInDays" : {"Ref" : "ExpirationInDays"}
+            }
+          ]
+        }
       }
     },
     "BucketPolicy" : {
