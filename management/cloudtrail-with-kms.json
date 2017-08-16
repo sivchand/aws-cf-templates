@@ -43,7 +43,7 @@
         }
       }
     },
-    "CMK" : {
+    "CloudTrailKey" : {
       "Type": "AWS::KMS::Key",
       "Description" : "KMS Key for encrypting CloudTrail Logs",
       "Properties" : {
@@ -118,7 +118,7 @@
       }
     },
     "myTrail" : {
-      "DependsOn" : ["BucketPolicy", "TopicPolicy", "CMK"],
+      "DependsOn" : ["BucketPolicy", "TopicPolicy", "CloudTrailKey"],
       "Type" : "AWS::CloudTrail::Trail",
       "Properties" : {
         "S3BucketName" : {"Ref":"S3Bucket"},
@@ -126,7 +126,7 @@
         "IsLogging" : true,
         "IsMultiRegionTrail" : true,
         "IncludeGlobalServiceEvents": true,
-        "KMSKeyId" : {"Ref" : "CMK"}
+        "KMSKeyId" : {"Ref" : "CloudTrailKey"}
       }
     }
   }
